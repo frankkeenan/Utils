@@ -1,0 +1,138 @@
+#!/usr/local/bin/perl
+use Getopt::Std;
+
+$, = ' ';               # set output field separator
+$\ = "\n";              # set output record separator
+
+&main;
+
+sub main
+{
+    $lct = 0;
+    $Found{"alpha_start"} = 1;
+    $Found{"runhd"} = 1;
+
+line:
+
+    while (<>) 
+    {
+	next line unless (/<entry/i);
+	chomp;			# strip record separator
+	$cp = $_;
+#	tr|A-Z|a-z|;
+
+	if (m|<h>(.*?)</h>|i)
+	{
+	    $h = $1;
+	}
+
+	$lct++;
+	undef %LCFound;
+	undef %LFound;
+	$cp = $_;
+	s|<!--.*?-->||go;	
+	s|<\?\".*?>||gio;
+	# open before open tags
+	s|(<[^/])|&split;$1|go;			
+	s|(</[^>]*>)|$1&split;|gio; # close after closers
+	
+	$p = 0;
+	@TAGS = split(/&split;/);	
+	
+      loop: 
+	foreach $tag (@TAGS)
+	{
+	    $tagname = "";
+	    if ($tag =~ m|<[^/]|)
+	    {
+		$tagname = $tag;
+		$tag =~ s|<|\{|g;
+		$tag =~ s|>|\}|g;
+		$tagname =~ s|[ >].*||o;
+		$tagname =~ s|<||o;
+		unless ($Found{$tagname})
+		{
+		    $p = 1;
+		    $Found{$tagname} = 1;
+		    $TAG_EG{$tagname} = sprintf("<entry><h>$tagname</h><z> [</z>$tag<z>] in entry </z><ei>$h</ei></entry>"); 
+		    $TAG_ENTRY{$tagname} = $cp;
+		}
+	    }
+	    	    
+	    # don't do entities for phonetics fields
+#	    next loop if $tagname =~ /i *$/i;
+#	    next loop if $tagname =~ /y *$/i;
+#	    next loop if $tagname =~ /e?ph *$/i;
+	    
+	    if ($tag =~ /&/)
+	    {
+		$tag =~ s|&|&split;&|go;
+		@ENTS = split(/&split;/, $tag);
+		
+	      entloop: 
+		foreach $ent (@ENTS)
+		{			
+		    next entloop unless ($ent =~ /&/);
+		    $ent =~ s|;.*|;|o; 
+		    $entname = $ent;
+		    $entname =~ s|[&;]||g;
+		    unless ($Found{$entname})
+		    {
+			$p = 1;
+			$Found{$entname} = 1;
+			$ENT_EG{$entname} = sprintf("<entry><h>$entname</h><z> [</z>$ent<z>] in entry </z><ei>$h</ei></entry>"); 
+			$ENT_ENTRY{$entname} = $cp;
+		    }
+		}			# 
+	    }			# 
+	}
+	if ($p)
+	{
+#	    print $cp;
+	}
+    }    
+
+    foreach $tag (sort keys %TAG_EG)
+    {
+	printf("%s\n", $TAG_EG{$tag}); 
+	$e = $TAG_ENTRY{$tag};
+	if ($e =~ m|(<h>.*?</h>)|i)
+	{
+	    $h = $1;
+	    unless ($h eq $last_h)
+	    {
+		printf("%s\n\n", $e); 
+	    }
+	    $last_h = $h;
+	}
+	else
+	{
+	    printf("%s\n\n", $e); 
+	    $last_h = "";
+
+	}
+
+    }
+    $last_h = "";
+    foreach $ent (sort keys %ENT_EG)
+    {
+	printf("%s\n", $ENT_EG{$ent}); 
+	$e = $ENT_ENTRY{$ent}; 
+	if ($e =~ m|(<h>.*?</h>)|i)
+	{
+	    $h = $1;
+	    unless ($h eq $last_h)
+	    {
+		printf("%s\n\n", $e); 
+	    }
+	    $last_h = $h;
+	}
+	else
+	{
+	    printf("%s\n\n", $e); 
+	    $last_h = "";
+
+	}
+    }
+}
+
